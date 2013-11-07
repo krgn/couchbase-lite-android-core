@@ -257,10 +257,13 @@ public class CBLView {
      */
     @SuppressWarnings("unchecked")
     public CBLStatus updateIndex() {
-        Log.v(CBLDatabase.TAG, "Re-indexing view " + name + " ...");
+
+        Log.d(CBLDatabase.TAG, this + " Re-indexing view: " + name);
+
         assert (mapBlock != null);
 
         if (getViewId() < 0) {
+            Log.d(CBLDatabase.TAG, this + " getViewId() < 0 ");
             return new CBLStatus(CBLStatus.NOT_FOUND);
         }
 
@@ -272,7 +275,11 @@ public class CBLView {
 
             long lastSequence = getLastSequenceIndexed();
             long dbMaxSequence = db.getLastSequence();
+            Log.d(CBLDatabase.TAG, this + "lastSequence: " + lastSequence + " dbMaxSequence: " + dbMaxSequence);
+
+
             if(lastSequence == dbMaxSequence) {
+                Log.d(CBLDatabase.TAG, this + "lastSequence == dbMaxSequence, return NOT_MODIFIED");
                 result.setCode(CBLStatus.NOT_MODIFIED);
                 return result;
             }
@@ -280,24 +287,35 @@ public class CBLView {
             // First remove obsolete emitted results from the 'maps' table:
             long sequence = lastSequence;
             if (lastSequence < 0) {
+                Log.d(CBLDatabase.TAG, this + "lastSequence < 0, return result");
                 return result;
             }
 
             if (lastSequence == 0) {
                 // If the lastSequence has been reset to 0, make sure to remove
                 // any leftover rows:
+                Log.d(CBLDatabase.TAG, this + " lastSequence == 0, delete leftover rows");
+
                 String[] whereArgs = { Integer.toString(getViewId()) };
                 db.getDatabase().delete("maps", "view_id=?", whereArgs);
             } else {
                 // Delete all obsolete map results (ones from since-replaced
                 // revisions):
+                Log.d(CBLDatabase.TAG, this + " lastSequence != 0, Delete all obsolete map results");
+
                 String[] args = { Integer.toString(getViewId()),
                         Long.toString(lastSequence),
                         Long.toString(lastSequence) };
+
+                String sql = "DELETE FROM maps WHERE view_id=? AND sequence IN ("
+                        + "SELECT parent FROM revs WHERE sequence>? "
+                        + "AND parent>0 AND parent<=?)";
+
+                Log.d(CBLDatabase.TAG, this + " Delete all obsolete map results sql: " + sql);
+                Log.d(CBLDatabase.TAG, this + " Delete all obsolete map results args: " + args);
+
                 db.getDatabase().execSQL(
-                        "DELETE FROM maps WHERE view_id=? AND sequence IN ("
-                                + "SELECT parent FROM revs WHERE sequence>? "
-                                + "AND parent>0 AND parent<=?)", args);
+                        sql, args);
             }
 
             int deleted = 0;
@@ -317,7 +335,7 @@ public class CBLView {
                     try {
                         String keyJson = CBLServer.getObjectMapper().writeValueAsString(key);
                         String valueJson = CBLServer.getObjectMapper().writeValueAsString(value);
-                        Log.v(CBLDatabase.TAG, "    emit(" + keyJson + ", "
+                        Log.d(CBLDatabase.TAG, "    emit(" + keyJson + ", "
                                 + valueJson + ")");
 
                         ContentValues insertValues = new ContentValues();
@@ -337,17 +355,23 @@ public class CBLView {
             // indexed:
             String[] selectArgs = { Long.toString(lastSequence) };
 
+            String sql = "SELECT revs.doc_id, sequence, docid, revid, json FROM revs, docs "
+                    + "WHERE sequence>? AND current!=0 AND deleted=0 "
+                    + "AND revs.doc_id = docs.doc_id "
+                    + "ORDER BY revs.doc_id, revid DESC";
+
+            Log.d(CBLDatabase.TAG, this + " updateIndex() sql: " + sql);
+            Log.d(CBLDatabase.TAG, this + " updateIndex() selectArgs: " + selectArgs);
+
             cursor = db.getDatabase().rawQuery(
-                    "SELECT revs.doc_id, sequence, docid, revid, json FROM revs, docs "
-                            + "WHERE sequence>? AND current!=0 AND deleted=0 "
-                            + "AND revs.doc_id = docs.doc_id "
-                            + "ORDER BY revs.doc_id, revid DESC", selectArgs);
+                    sql, selectArgs);
 
             cursor.moveToFirst();
 
             long lastDocID = 0;
             while (!cursor.isAfterLast()) {
                 long docID = cursor.getLong(0);
+                Log.d(CBLDatabase.TAG, this + " docId: " + docID + " lastDocId: " + lastDocID);
                 if (docID != lastDocID) {
                     // Only look at the first-iterated revision of any document,
                     // because this is the
@@ -363,6 +387,7 @@ public class CBLView {
                         continue;
                     }
                     String revId = cursor.getString(3);
+                    Log.d(CBLDatabase.TAG, this + " revId: " + revId);
                     byte[] json = cursor.getBlob(4);
                     Map<String, Object> properties = db
                             .documentPropertiesFromJSON(json, docId, revId,
@@ -371,7 +396,7 @@ public class CBLView {
                     if (properties != null) {
                         // Call the user-defined map() to emit new key/value
                         // pairs from this revision:
-                        Log.v(CBLDatabase.TAG,
+                        Log.d(CBLDatabase.TAG,
                                 "  call map for sequence="
                                         + Long.toString(sequence));
                         emitBlock.setSequence(sequence);
@@ -390,14 +415,16 @@ public class CBLView {
             String[] whereArgs = { Integer.toString(getViewId()) };
             db.getDatabase().update("views", updateValues, "view_id=?",
                     whereArgs);
+            Log.d(CBLDatabase.TAG, this + " update lastSequence to: " + dbMaxSequence);
 
             // FIXME actually count number added :)
-            Log.v(CBLDatabase.TAG, "...Finished re-indexing view " + name
+            Log.d(CBLDatabase.TAG, "...Finished re-indexing view " + name
                     + " up to sequence " + Long.toString(dbMaxSequence)
                     + " (deleted " + deleted + " added " + "?" + ")");
             result.setCode(CBLStatus.OK);
 
         } catch (SQLException e) {
+            Log.e(CBLDatabase.TAG, this + "Exception indexing view", e);
             return result;
         } finally {
             if (cursor != null) {
@@ -408,6 +435,7 @@ public class CBLView {
                         + result.getCode());
             }
             if(db != null) {
+                Log.d(CBLDatabase.TAG, "Ending transaction with result: " + result.isSuccessful());
                 db.endTransaction(result.isSuccessful());
             }
         }
