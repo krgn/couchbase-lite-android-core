@@ -388,7 +388,7 @@ public class CBLView {
                         continue;
                     }
                     String revId = cursor.getString(3);
-                    Log.d(CBLDatabase.TAG, this + " revId: " + revId + " sequence: " + sequence);
+                    Log.d(CBLDatabase.TAG, this + " docId: " + docID + " revId: " + revId + " sequence: " + sequence);
                     byte[] json = cursor.getBlob(4);
                     Map<String, Object> properties = db
                             .documentPropertiesFromJSON(json, docId, revId,
@@ -402,6 +402,9 @@ public class CBLView {
                                         + Long.toString(sequence));
                         emitBlock.setSequence(sequence);
                         mapBlock.map(properties, emitBlock);
+                    }
+                    else {
+                        Log.d(CBLDatabase.TAG, this + " properties == null, not calling map");
                     }
 
                 }
