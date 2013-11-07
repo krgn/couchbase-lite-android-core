@@ -383,11 +383,12 @@ public class CBLView {
                     sequence = cursor.getLong(1);
                     String docId = cursor.getString(2);
                     if(docId.startsWith("_design/")) {  // design docs don't get indexed!
+                        Log.d(CBLDatabase.TAG, this + " skip design doc");
                         cursor.moveToNext();
                         continue;
                     }
                     String revId = cursor.getString(3);
-                    Log.d(CBLDatabase.TAG, this + " revId: " + revId);
+                    Log.d(CBLDatabase.TAG, this + " revId: " + revId + " sequence: " + sequence);
                     byte[] json = cursor.getBlob(4);
                     Map<String, Object> properties = db
                             .documentPropertiesFromJSON(json, docId, revId,
