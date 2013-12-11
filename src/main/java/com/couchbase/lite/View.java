@@ -290,7 +290,7 @@ public class View {
             try {
                 cursor = database.getDatabase().rawQuery(sql, args);
                 if (cursor.moveToNext()) {
-                    viewId = cursor.getInt(0);
+                    viewId = Integer.valueOf(cursor.getString(0));
                 } else {
                     viewId = 0;
                 }
@@ -305,8 +305,6 @@ public class View {
         }
         return viewId;
     }
-
-
 
 
 
