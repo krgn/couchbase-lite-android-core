@@ -45,6 +45,7 @@ public class LiveQuery extends Query implements Database.ChangeListener {
      */
     @InterfaceAudience.Public
     public QueryEnumerator run() throws CouchbaseLiteException {
+        start();
         if (rows == null) {
             return null;
         }
