@@ -34,8 +34,10 @@ import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 
 /**
@@ -55,6 +57,7 @@ public class ChangeTracker implements Runnable {
 
     private String filterName;
     private Map<String, Object> filterParams;
+    private List<String> docIDs;
 
     private Throwable error;
 
@@ -77,6 +80,10 @@ public class ChangeTracker implements Runnable {
 
     public void setFilterParams(Map<String, Object> filterParams) {
         this.filterParams = filterParams;
+    }
+
+    public void setDocIds(List<String> docIDs) {
+        this.docIDs = docIDs;
     }
 
     public void setClient(ChangeTrackerClient client) {
@@ -115,6 +122,36 @@ public class ChangeTracker implements Runnable {
         if(lastSequenceID != null) {
             path += "&since=" + URLEncoder.encode(lastSequenceID.toString());
         }
+
+        // if docIDs have been passed in, the filterType is inferred to be _doc_ids
+        if(docIDs != null) {
+           filterName = "_doc_ids"; 
+           
+            Iterator idIter = docIDs.iterator();
+            final StringBuilder tmpStr = new StringBuilder();
+
+            // construct a JSON array of document IDs 
+            tmpStr.append("["); 
+
+            while(idIter.hasNext()) {
+                String docID = (String)idIter.next();
+
+                if(idIter.hasNext()) {
+                    tmpStr.append("\"").append(docID).append("\"").append(",");
+                }
+                else {
+                    tmpStr.append("\"").append(docID).append("\"");
+                }
+            }
+
+            tmpStr.append("]"); 
+
+            // pass in the StringBuilder, ready for URLEncoder
+            filterParams = new HashMap<String, Object>() {{
+                put("doc_ids", tmpStr);
+            }};
+        }
+
         if(filterName != null) {
             path += "&filter=" + URLEncoder.encode(filterName);
             if(filterParams != null) {
